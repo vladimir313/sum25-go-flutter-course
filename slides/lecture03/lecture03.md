@@ -1684,10 +1684,11 @@ Future<void> deleteUser(int userId) async {
 
 <div class="slide-content">
 
+#### 1. Manual Approach
+
 <div class="code-columns">
 <div>
 
-#### User Model
 ```dart
 class User {
   final int id;
@@ -1695,13 +1696,19 @@ class User {
   final bool active;
   final DateTime createdAt;
   
-  User({
+  const User({
     required this.id,
     required this.name,
     required this.active,
     required this.createdAt,
   });
-  
+```
+
+</div>
+
+<div>
+
+```dart
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] as int,
@@ -1724,51 +1731,230 @@ class User {
 
 </div>
 
+</div>
+
+</div>
+
+---
+
+# Code generation (json_serializable)
+
+<div class="slide-content">
+
+<div class="code-columns">
 <div>
 
-#### Request/Response Models
 ```dart
-class CreateUserRequest {
-  final String name;
-  final String email;
-  final String password;
-  
-  CreateUserRequest({
-    required this.name,
-    required this.email,
-    required this.password,
-  });
-  
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'email': email,
-      'password': password,
-    };
-  }
-}
+import 'package:json_annotation/json_annotation.dart';
 
-class ApiResponse<T> {
-  final bool success;
-  final T? data;
-  final String? error;
-  
-  ApiResponse({
-    required this.success,
-    this.data,
-    this.error,
+part 'user.g.dart';
+
+@JsonSerializable()
+class User {
+  final int id;
+  final String name;
+  final bool active;
+
+  @JsonKey(name: 'created_at')
+  final DateTime createdAt;
+```
+
+</div>
+
+<div>
+
+```dart
+  const User({
+    required this.id,
+    required this.name,
+    required this.active,
+    required this.createdAt,
   });
+  factory User.fromJson(Map<String, dynamic> json) =>
+      _$UserFromJson(json); 
+  Map<String, dynamic> toJson() => _$UserToJson(this);
+}
+```
+
+
+</div>
+
+</div>
+
+<div class="code-columns">
+<div>
+
+>  `dart pub add dev:build_runner` 
+>  `dart pub add dev:json_serializable`
+>  `dart run build_runner build` // generate the code
+
+</div>
+
+<div>
+
+**Pros:** Less boilerplate, type-safe, handles edge cases  
+**Cons:** Build step required, additional dependencies
+
+</div>
+
+---
+
+<div>
+
+# Code generation (freezed)
+
+<div class="slide-content">
+
+<div class="code-columns">
+<div>
+
+```dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user.freezed.dart';
+part 'user.g.dart';
+
+@freezed
+class User with _$User {
+  const factory User({
+    required int id,
+    required String name,
+    required bool active,
+    @JsonKey(name: 'created_at') required DateTime createdAt,
+  }) = _User;
   
-  factory ApiResponse.fromJson(
-    Map<String, dynamic> json,
-    T Function(Map<String, dynamic>) fromJsonT,
-  ) {
-    return ApiResponse<T>(
-      success: json['success'] as bool,
-      data: json['data'] != null ? fromJsonT(json['data']) : null,
-      error: json['error'] as String?,
-    );
-  }
+  factory User.fromJson(Map<String, dynamic> json) =>
+      _$UserFromJson(json);
+}
+```
+
+</div>
+
+<div>
+
+>  `dart pub add dev:build_runner`
+>  `dart pub add dev:freezed`
+>  `dart pub add dev:json_serializable`
+>  `dart pub add freezed_annotation`
+>  `dart pub add json_annotation`
+>  `dart run build_runner build`
+
+
+</div>
+</div>
+</div>
+
+---
+<div class="slide-content">
+
+<div class="code-columns">
+<div>
+
+#### Custom Methods & Getters
+```dart
+@freezed
+class User with _$User {
+  const factory User({
+    required int id,
+    required String name,
+    required bool active,
+    @JsonKey(name: 'created_at') required DateTime createdAt,
+  }) = _User;
+  
+  const User._(); // Private constructor for custom methods
+  
+  factory User.fromJson(Map<String, dynamic> json) =>
+      _$UserFromJson(json);
+  
+  // Custom getters
+  String get displayName => name.toUpperCase();
+  bool get isNewUser => 
+      DateTime.now().difference(createdAt).inDays < 7;
+  
+  // Custom methods
+  User deactivate() => copyWith(active: false);
+  User updateName(String newName) => copyWith(name: newName);
+}
+```
+
+</div>
+
+<div>
+
+#### Usage Examples
+```dart
+final user1 = User( // Creating instances
+  id: 1,
+  name: 'John Doe',
+  active: true,
+  createdAt: DateTime.now(),
+);
+// Immutable copying (Freezed only)
+final user2 = user1.copyWith(name: 'Jane Doe');
+
+// Equality (Freezed auto-generates)
+print(user1 == user2); // false
+print(user1.hashCode == user2.hashCode); // false
+
+// Custom methods
+print(user1.displayName); // JOHN DOE
+print(user1.isNewUser); // true (if created recently)
+final deactivatedUser = user1.deactivate();
+print(deactivatedUser.active); // false
+
+// JSON serialization (same for all approaches)
+final json = user1.toJson();
+final userFromJson = User.fromJson(json);
+```
+
+</div>
+
+</div>
+
+</div>
+
+---
+
+# Patern matching
+
+<div class="slide-content">
+
+<div class="code-columns">
+<div>
+
+```dart
+// Using the union types
+final result = await apiService.createUser(user);
+
+result.when(
+  success: (user) {
+    // Handle successful user creation
+    showSuccessMessage('User created: ${user.name}');
+    navigateToUserProfile(user);
+  },
+  error: (message) {
+    // Handle error
+    showErrorDialog(message);
+  },
+  loading: () {
+    // Show loading indicator
+    showLoadingSpinner();
+  },
+);
+```
+
+</div>
+
+<div>
+
+```dart
+// Alternative pattern matching
+if (result is Success<User>) {
+  final user = result.data;
+  // Handle success
+} else if (result is Error<User>) {
+  final error = result.message;
+  // Handle error
 }
 ```
 
@@ -1780,19 +1966,43 @@ class ApiResponse<T> {
 
 ---
 
-# API Service Layer Pattern
+# Comparison of Model Approaches
 
 <div class="slide-content">
+
+| Feature | Manual | json_serializable | Freezed |
+|---------|--------|-------------------|---------|
+| **Boilerplate** | High | Medium | Low |
+| **Type Safety** | Manual | Generated | Generated |
+| **Immutability** | Manual | Manual | Built-in |
+| **Copy Methods** | Manual | Manual | Generated |
+| **Equality** | Manual | Manual | Generated |
+| **Union Types** | ❌ | ❌ | ✅ |
+| **Pattern Matching** | ❌ | ❌ | ✅ |
+| **Build Step** | ❌ | ✅ | ✅ |
+| **Dependencies** | None | Medium | High |
+| **Learning Curve** | Low | Medium | High |
+
+
+- **Manual**: Small projects, simple models, learning Dart
+- **json_serializable**: Medium projects, standard REST APIs
+- **Freezed**: Large projects, complex state management, functional programming style
+
+---
+
+# API service layer pattern
+
+<div class="slide-content">
+
+#### Centralized API service
 
 <div class="code-columns">
 <div>
 
-#### Centralized API Service
 ```dart
 class ApiService {
   static const String baseUrl = 'https://api.example.com';
   static const Duration timeoutDuration = Duration(seconds: 30);
-  
   final http.Client _client;
   String? _authToken;
   
@@ -1801,17 +2011,14 @@ class ApiService {
   void setAuthToken(String token) {
     _authToken = token;
   }
-  
   Map<String, String> get _headers {
     final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-    };
-    
+    }; 
     if (_authToken != null) {
       headers['Authorization'] = 'Bearer $_authToken';
     }
-    
     return headers;
   }
 ```
@@ -1925,14 +2132,13 @@ extension UserService on ApiService {
 
 ---
 
-# Custom Exception Handling
+# Exception types
 
 <div class="slide-content">
 
 <div class="code-columns">
 <div>
 
-#### Exception Types
 ```dart
 abstract class ApiException implements Exception {
   final String message;
@@ -1945,7 +2151,13 @@ abstract class ApiException implements Exception {
 class NetworkException extends ApiException {
   const NetworkException(String message) : super(message);
 }
+```
 
+</div>
+
+<div>
+
+```dart
 class UnauthorizedException extends ApiException {
   const UnauthorizedException(String message) : super(message);
 }
@@ -1967,10 +2179,18 @@ class ServerException extends ApiException {
 ```
 
 </div>
+</div>
+</div>
 
+---
+
+# Global error handler
+
+<div class="slide-content">
+
+<div class="code-columns">
 <div>
 
-#### Global Error Handler
 ```dart
 class ApiErrorHandler {
   static void handleError(dynamic error) {
@@ -1986,7 +2206,13 @@ class ApiErrorHandler {
       throw ApiException('Unexpected error occurred');
     }
   }
-  
+```
+
+</div>
+
+<div>
+
+```dart
   static String getErrorMessage(dynamic error) {
     if (error is NetworkException) {
       return 'Please check your internet connection';
@@ -2005,6 +2231,7 @@ class ApiErrorHandler {
 }
 ```
 
+
 </div>
 
 </div>
@@ -2013,34 +2240,28 @@ class ApiErrorHandler {
 
 ---
 
-# State Management with APIs
+#### Provider Pattern
 
 <div class="slide-content">
 
 <div class="code-columns">
 <div>
 
-#### Provider Pattern
 ```dart
 class UserProvider extends ChangeNotifier {
   final ApiService _apiService;
-  
   List<User> _users = [];
   User? _selectedUser;
   bool _isLoading = false;
   String? _error;
-  
   UserProvider(this._apiService);
-  
   List<User> get users => _users;
   User? get selectedUser => _selectedUser;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  
   Future<void> loadUsers() async {
     _setLoading(true);
     _error = null;
-    
     try {
       _users = await _apiService.getUsers();
       notifyListeners();
@@ -2060,7 +2281,6 @@ class UserProvider extends ChangeNotifier {
   Future<void> createUser(CreateUserRequest request) async {
     _setLoading(true);
     _error = null;
-    
     try {
       final newUser = await _apiService.createUser(request);
       _users.add(newUser);
@@ -2072,12 +2292,10 @@ class UserProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
   }
-  
   void clearError() {
     _error = null;
     notifyListeners();
@@ -2093,14 +2311,13 @@ class UserProvider extends ChangeNotifier {
 
 ---
 
-# Using APIs in Flutter Widgets
+#### Consumer Widget
 
 <div class="slide-content">
 
 <div class="code-columns">
 <div>
 
-#### Consumer Widget
 ```dart
 class UserListScreen extends StatelessWidget {
   @override
@@ -2112,7 +2329,6 @@ class UserListScreen extends StatelessWidget {
           if (userProvider.isLoading) {
             return Center(child: CircularProgressIndicator());
           }
-          
           if (userProvider.error != null) {
             return Center(
               child: Column(
@@ -2130,11 +2346,7 @@ class UserListScreen extends StatelessWidget {
                       userProvider.loadUsers();
                     },
                     child: Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
+            ),],),);}
 ```
 
 </div>
@@ -2162,23 +2374,13 @@ class UserListScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => UserDetailScreen(user: user),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        },
-      ),
+                        builder: (context) => 
+                          UserDetailScreen(user: user),
+      ),);},);},),);},),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreateUserDialog(context),
         child: Icon(Icons.add),
-      ),
-    );
-  }
-}
+),);}}
 ```
 
 </div>
@@ -2189,15 +2391,12 @@ class UserListScreen extends StatelessWidget {
 
 ---
 
-# Part IV: Integration & Best Practices
+# Part IV: Integration 
 
 <div class="slide-content">
 
-## Full-Stack Communication Flow
-
 ```
 Flutter App                          Go Server
-     |                                   |
      │ 1. User Action                    │
      │ (Button Press)                    │
      │                                   │
@@ -2227,10 +2426,11 @@ Flutter App                          Go Server
 
 <div class="slide-content">
 
+#### Go JWT middleware
+
 <div class="code-columns">
 <div>
 
-#### Go JWT Middleware
 ```go
 type Claims struct {
     UserID int    `json:"user_id"`
@@ -2249,13 +2449,22 @@ func generateJWT(userID int, email, role string) (string, error) {
             IssuedAt:  time.Now().Unix(),
         },
     }
-    
+```
+
+</div>
+
+<div>
+
+```go
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
     return token.SignedString([]byte(jwtSecret))
 }
-
+// JWT = JSON Web Token
 func validateJWT(tokenString string) (*Claims, error) {
-    token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+    token, err := jwt.ParseWithClaims(tokenString, 
+                                      &Claims{}, 
+                                      func(token *jwt.Token) 
+                                      (interface{}, error) {
         return []byte(jwtSecret), nil
     })
     
@@ -2269,15 +2478,26 @@ func validateJWT(tokenString string) (*Claims, error) {
 
 </div>
 
+</div>
+
+</div>
+
+---
+
+# Authentication flow
+
+<div class="slide-content">
+
+#### Flutter auth service
+
+<div class="code-columns">
 <div>
 
-#### Flutter Auth Service
 ```dart
 class AuthService extends ChangeNotifier {
   String? _token;
   User? _currentUser;
   final ApiService _apiService;
-  
   AuthService(this._apiService);
   
   bool get isAuthenticated => _token != null;
@@ -2288,16 +2508,20 @@ class AuthService extends ChangeNotifier {
       final response = await _apiService.login(email, password);
       _token = response.token;
       _currentUser = response.user;
-      
       _apiService.setAuthToken(_token!);
       await _saveToken(_token!);
-      
       notifyListeners();
     } catch (e) {
       rethrow;
     }
   }
-  
+```
+
+</div>
+
+<div>
+
+```dart
   Future<void> logout() async {
     _token = null;
     _currentUser = null;
@@ -2325,95 +2549,6 @@ class AuthService extends ChangeNotifier {
 </div>
 
 ---
-
-# CORS Configuration
-
-<div class="slide-content">
-
-<div class="code-columns">
-<div>
-
-#### Go CORS Setup
-```go
-func corsMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        origin := r.Header.Get("Origin")
-        
-        // Allow specific origins in production
-        allowedOrigins := []string{
-            "http://localhost:3000",   // Flutter web dev
-            "https://myapp.com",       // Production domain
-        }
-        
-        for _, allowed := range allowedOrigins {
-            if origin == allowed {
-                w.Header().Set("Access-Control-Allow-Origin", origin)
-                break
-            }
-        }
-        
-        w.Header().Set("Access-Control-Allow-Methods", 
-            "GET, POST, PUT, DELETE, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", 
-            "Content-Type, Authorization, X-Requested-With")
-        w.Header().Set("Access-Control-Allow-Credentials", "true")
-        w.Header().Set("Access-Control-Max-Age", "86400")
-        
-        if r.Method == "OPTIONS" {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-        
-        next.ServeHTTP(w, r)
-    })
-}
-```
-
-</div>
-
-<div>
-
-#### Environment-Specific Configuration
-```go
-type Config struct {
-    Port            string
-    DatabaseURL     string
-    JWTSecret       string
-    AllowedOrigins  []string
-    Environment     string
-}
-
-func loadConfig() *Config {
-    return &Config{
-        Port:            getEnv("PORT", "8080"),
-        DatabaseURL:     getEnv("DATABASE_URL", ""),
-        JWTSecret:       getEnv("JWT_SECRET", "dev-secret"),
-        AllowedOrigins: strings.Split(
-            getEnv("ALLOWED_ORIGINS", "http://localhost:3000"), 
-            ",",
-        ),
-        Environment:     getEnv("ENVIRONMENT", "development"),
-    }
-}
-
-func getEnv(key, defaultValue string) string {
-    if value := os.Getenv(key); value != "" {
-        return value
-    }
-    return defaultValue
-}
-```
-
-</div>
-
-</div>
-
-</div>
-
----
-
-# API Versioning Strategy
-
 <div class="slide-content">
 
 <div class="code-columns">
@@ -2423,27 +2558,19 @@ func getEnv(key, defaultValue string) string {
 ```go
 func setupRoutes() *mux.Router {
     r := mux.NewRouter()
-    
     // API v1
     v1 := r.PathPrefix("/api/v1").Subrouter()
     v1.HandleFunc("/users", getUsersV1).Methods("GET")
     v1.HandleFunc("/users", createUserV1).Methods("POST")
-    
     // API v2 with enhanced features
     v2 := r.PathPrefix("/api/v2").Subrouter()
     v2.HandleFunc("/users", getUsersV2).Methods("GET")
     v2.HandleFunc("/users", createUserV2).Methods("POST")
     v2.HandleFunc("/users/batch", createUsersV2).Methods("POST")
-    
-    return r
-}
-
+    return r }
 func getUsersV1(w http.ResponseWriter, r *http.Request) {
-    // Legacy implementation
-    users := getUsersLegacy()
-    writeJSON(w, http.StatusOK, users)
-}
-
+    users := getUsersLegacy() // Legacy implementation
+    writeJSON(w, http.StatusOK, users)}
 func getUsersV2(w http.ResponseWriter, r *http.Request) {
     // Enhanced implementation with pagination, filters
     users, pagination := getUsersEnhanced(r)
@@ -2453,9 +2580,7 @@ func getUsersV2(w http.ResponseWriter, r *http.Request) {
     }{
         Data:       users,
         Pagination: pagination,
-    }
-    writeJSON(w, http.StatusOK, response)
-}
+    } writeJSON(w, http.StatusOK, response) }
 ```
 
 </div>
@@ -2467,20 +2592,16 @@ func getUsersV2(w http.ResponseWriter, r *http.Request) {
 class ApiConfig {
   static const String baseUrl = 'https://api.example.com';
   static const String currentVersion = 'v2';
-  
   static String get apiUrl => '$baseUrl/api/$currentVersion';
 }
-
 class UserService {
   Future<List<User>> getUsers() async {
     final response = await http.get(
       Uri.parse('${ApiConfig.apiUrl}/users'),
       headers: _headers,
     );
-    
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      
       // Handle both v1 and v2 response formats
       if (data is List) {
         // v1 format: direct array
@@ -2492,9 +2613,7 @@ class UserService {
       }
     } else {
       throw ApiException('Failed to load users');
-    }
-  }
-}
+}}}
 ```
 
 </div>
@@ -2505,90 +2624,16 @@ class UserService {
 
 ---
 
-# Performance Optimization
+# What we've learned
 
 <div class="slide-content">
 
-#### Go Server Optimizations
-- **Connection pooling**: Reuse database connections
-- **Caching**: Redis for frequently accessed data
-- **Compression**: Gzip middleware for large responses
-- **Rate limiting**: Prevent API abuse
-
-#### Flutter Client Optimizations
-- **HTTP client reuse**: Single client instance
-- **Response caching**: Cache static or rarely changing data
-- **Pagination**: Load data in chunks
-- **Background sync**: Update data when app becomes active
-
-<div class="code-columns">
-<div>
-
-```go
-// Go: Response compression
-func gzipMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-            next.ServeHTTP(w, r)
-            return
-        }
-        
-        w.Header().Set("Content-Encoding", "gzip")
-        gz := gzip.NewWriter(w)
-        defer gz.Close()
-        
-        gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-        next.ServeHTTP(gzw, r)
-    })
-}
-```
-
-</div>
-
-<div>
-
-```dart
-// Flutter: Response caching
-class CacheService {
-  static final Map<String, CacheEntry> _cache = {};
-  
-  static void set(String key, dynamic data, Duration ttl) {
-    _cache[key] = CacheEntry(
-      data: data,
-      expiresAt: DateTime.now().add(ttl),
-    );
-  }
-  
-  static T? get<T>(String key) {
-    final entry = _cache[key];
-    if (entry != null && entry.expiresAt.isAfter(DateTime.now())) {
-      return entry.data as T;
-    }
-    _cache.remove(key);
-    return null;
-  }
-}
-```
-
-</div>
-
-</div>
-
-</div>
-
----
-
-# What We've Learned
-
-<div class="slide-content">
-
-## Fundamental Understanding
+#### Fundamental Understanding
 - **API Evolution**: From SOAP to REST to modern patterns
 - **HTTP Protocol**: Methods, status codes, headers, and semantics
 - **REST Principles**: Stateless, cacheable, uniform interface
-- **Data Serialization**: JSON vs XML, best practices
 
-## Go HTTP Server Mastery
+## Go HTTP server 
 - **net/http package**: Handlers, routing, middleware patterns
 - **JSON handling**: Encoding/decoding, struct tags
 - **Error handling**: Custom types, consistent responses
@@ -2599,46 +2644,19 @@ class CacheService {
 
 ---
 
-# What We've Learned - Continued
+# What we've learned (continued)
 
 <div class="slide-content">
 
-## Flutter HTTP Client Excellence
+## Flutter HTTP client 
 - **http package**: GET, POST, PUT, DELETE operations
 - **Data models**: Serialization with fromJson/toJson
 - **Error handling**: Custom exceptions, user-friendly messages
 - **State management**: Provider pattern with API integration
-- **UI patterns**: FutureBuilder, error states, loading indicators
 
-## Integration Patterns
+## Integration patterns
 - **Authentication**: JWT tokens, secure storage
-- **CORS configuration**: Cross-origin request handling
 - **API versioning**: Backward compatibility strategies
-- **Performance**: Caching, compression, connection pooling
-
-</div>
-
----
-
-# Best Practices Summary
-
-<div class="slide-content">
-
-#### Go API Development
-- **Use proper HTTP status codes** for different scenarios
-- **Implement comprehensive error handling** with custom types
-- **Add middleware** for cross-cutting concerns (logging, auth, CORS)
-- **Write tests** for all endpoints and edge cases
-- **Validate input data** to prevent security vulnerabilities
-- **Use context** for request cancellation and timeouts
-
-#### Flutter HTTP Client
-- **Create centralized API service** classes for maintainability
-- **Handle all error scenarios** with user-friendly messages
-- **Implement proper loading states** to improve UX
-- **Cache responses** when appropriate to reduce network calls
-- **Use proper state management** patterns (Provider, Bloc, Riverpod)
-- **Dispose HTTP clients** to prevent memory leaks
 
 </div>
 
